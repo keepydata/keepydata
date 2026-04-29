@@ -7,6 +7,8 @@ import Prenotazioni from './pages/Prenotazioni'
 import Clienti from './pages/Clienti'
 import Checkin from './pages/Checkin'
 import Fatturazione from './pages/Fatturazione'
+import Disponibilita from './pages/Disponibilita'
+import Impostazioni from './pages/Impostazioni'
 
 export default function App() {
   const [utente, setUtente] = useState<{ email?: string } | null>(null)
@@ -42,6 +44,8 @@ export default function App() {
         <Route path="/clienti" element={utente ? <Clienti /> : <Navigate to="/" />} />
         <Route path="/checkin" element={utente ? <Checkin /> : <Navigate to="/" />} />
         <Route path="/fatturazione" element={utente ? <Fatturazione /> : <Navigate to="/" />} />
+        <Route path="/disponibilita" element={utente ? <Disponibilita /> : <Navigate to="/" />} />
+        <Route path="/impostazioni" element={utente ? <Impostazioni /> : <Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   )
