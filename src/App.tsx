@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Prenotazioni from './pages/Prenotazioni'
+import Clienti from './pages/Clienti'
 
 export default function App() {
   const [utente, setUtente] = useState<{ email?: string } | null>(null)
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/" element={utente ? <Navigate to="/dashboard" /> : <Login />} />
         <Route path="/dashboard" element={utente ? <Dashboard /> : <Navigate to="/" />} />
         <Route path="/prenotazioni" element={utente ? <Prenotazioni /> : <Navigate to="/" />} />
+        <Route path="/clienti" element={utente ? <Clienti /> : <Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   )
