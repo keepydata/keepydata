@@ -3,9 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import Prenotazioni from './pages/Prenotazioni'
 
 export default function App() {
-  const [utente, setUtente] = useState<object | null>(null)
+  const [utente, setUtente] = useState<{ email?: string } | null>(null)
   const [caricamento, setCaricamento] = useState(true)
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={utente ? <Navigate to="/dashboard" /> : <Login />} />
         <Route path="/dashboard" element={utente ? <Dashboard /> : <Navigate to="/" />} />
+        <Route path="/prenotazioni" element={utente ? <Prenotazioni /> : <Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   )
