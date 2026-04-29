@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Prenotazioni from './pages/Prenotazioni'
 import Clienti from './pages/Clienti'
+import Checkin from './pages/Checkin'
 
 export default function App() {
   const [utente, setUtente] = useState<{ email?: string } | null>(null)
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/dashboard" element={utente ? <Dashboard /> : <Navigate to="/" />} />
         <Route path="/prenotazioni" element={utente ? <Prenotazioni /> : <Navigate to="/" />} />
         <Route path="/clienti" element={utente ? <Clienti /> : <Navigate to="/" />} />
+        <Route path="/checkin" element={utente ? <Checkin /> : <Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   )
