@@ -2,8 +2,17 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 
+function getNome(utente: { email?: string; user_metadata?: Record<string, string> } | null): string {
+  if (!utente) return ''
+  const meta = utente.user_metadata
+  if (meta?.full_name) return meta.full_name
+  if (meta?.name) return meta.name
+  if (utente.email) return utente.email.split('@')[0]
+  return ''
+}
+
 export default function Dashboard() {
-  const [utente, setUtente] = useState<{ email?: string } | null>(null)
+  const [utente, setUtente] = useState<{ email?: string; user_metadata?: Record<string, string> } | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -11,10 +20,21 @@ export default function Dashboard() {
     })
   }, [])
 
+  const nome = getNome(utente)
+  const ora = new Date().getHours()
+  const saluto = ora < 12 ? 'Buongiorno' : ora < 18 ? 'Buon pomeriggio' : 'Buonasera'
+
   return (
     <Layout>
       <div style={{ padding: '1.75rem' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 500, marginBottom: '1.5rem', fontFamily: 'Georgia, serif' }}>Dashboard</h1>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 500, fontFamily: 'Georgia, serif', margin: 0 }}>Dashboard</h1>
+          {nome && (
+            <p style={{ margin: '6px 0 0', fontSize: '14px', color: '#666' }}>
+              {saluto}, <strong style={{ color: '#333' }}>{nome}</strong> — ecco il riepilogo di oggi.
+            </p>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '1.5rem' }}>
           {[
             { label: 'Occupazione oggi', valore: '80%', sub: '4 su 5 camere' },
@@ -41,9 +61,6 @@ export default function Dashboard() {
               <span>{item.testo}</span>
             </div>
           ))}
-        </div>
-        <div style={{ marginTop: '12px', fontSize: '12px', color: '#888' }}>
-          Utente: {utente?.email}
         </div>
       </div>
     </Layout>
