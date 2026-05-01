@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 
@@ -133,56 +133,53 @@ export default function Prenotazioni() {
   const [salvando, setSalvando] = useState(false)
   const [eliminando, setEliminando] = useState(false)
   const [erroreForm, setErroreForm] = useState<string | null>(null)
-  const skipPriceCalc = useRef(false)
-
-  useEffect(() => { caricaDati() }, [])
-
   useEffect(() => {
-    if (skipPriceCalc.current) { skipPriceCalc.current = false; return }
-    if (!form.camera_id || !form.data_arrivo || !form.data_partenza) return
-    const camera = camere.find(c => c.id === form.camera_id)
-    if (!camera) return
-    const notti = Math.round((new Date(form.data_partenza).getTime() - new Date(form.data_arrivo).getTime()) / 86400000)
-    if (notti > 0) setForm(prev => ({ ...prev, prezzo_totale: camera.prezzo_notte * notti }))
-  }, [form.camera_id, form.data_arrivo, form.data_partenza, camere])
+    async function caricaDati() {
+      setLoading(true)
+      setErrore(null)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
 
-  async function caricaDati() {
-    setLoading(true)
-    setErrore(null)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+        const { data: utenteData, error: errUtente } = await supabase
+          .from('utenti')
+          .select('struttura_id')
+          .eq('id', user.id)
+          .single()
 
-      const { data: utenteData, error: errUtente } = await supabase
-        .from('utenti')
-        .select('struttura_id')
-        .eq('id', user.id)
-        .single()
+        if (errUtente) throw errUtente
+        if (!utenteData?.struttura_id) return
 
-      if (errUtente) throw errUtente
-      if (!utenteData?.struttura_id) return
+        const sid = utenteData.struttura_id
+        setStrutturaId(sid)
 
-      const sid = utenteData.struttura_id
-      setStrutturaId(sid)
+        const [camereRes, clientiRes, prenotazioniRes] = await Promise.all([
+          supabase.from('camere').select('id, nome, prezzo_notte').eq('struttura_id', sid).eq('attiva', true).order('nome'),
+          supabase.from('clienti').select('id, nome, cognome').eq('struttura_id', sid).order('cognome'),
+          supabase.from('prenotazioni').select('*, camere(nome), clienti(nome, cognome)').eq('struttura_id', sid).order('data_arrivo'),
+        ])
 
-      const [camereRes, clientiRes, prenotazioniRes] = await Promise.all([
-        supabase.from('camere').select('id, nome, prezzo_notte').eq('struttura_id', sid).eq('attiva', true).order('nome'),
-        supabase.from('clienti').select('id, nome, cognome').eq('struttura_id', sid).order('cognome'),
-        supabase.from('prenotazioni').select('*, camere(nome), clienti(nome, cognome)').eq('struttura_id', sid).order('data_arrivo'),
-      ])
+        if (camereRes.error) throw camereRes.error
+        if (clientiRes.error) throw clientiRes.error
+        if (prenotazioniRes.error) throw prenotazioniRes.error
 
-      if (camereRes.error) throw camereRes.error
-      if (clientiRes.error) throw clientiRes.error
-      if (prenotazioniRes.error) throw prenotazioniRes.error
-
-      setCamere(camereRes.data ?? [])
-      setClienti(clientiRes.data ?? [])
-      setPrenotazioni(prenotazioniRes.data ?? [])
-    } catch (e: unknown) {
-      setErrore((e as Error).message ?? 'Errore nel caricamento')
-    } finally {
-      setLoading(false)
+        setCamere(camereRes.data ?? [])
+        setClienti(clientiRes.data ?? [])
+        setPrenotazioni(prenotazioniRes.data ?? [])
+      } catch (e: unknown) {
+        setErrore((e as Error).message ?? 'Errore nel caricamento')
+      } finally {
+        setLoading(false)
+      }
     }
+    caricaDati()
+  }, [])
+
+  function calcolaPrezzo(cameraId: string, arrivo: string, partenza: string): number {
+    const camera = camere.find(c => c.id === cameraId)
+    if (!camera || !arrivo || !partenza) return form.prezzo_totale
+    const notti = Math.round((new Date(partenza).getTime() - new Date(arrivo).getTime()) / 86400000)
+    return notti > 0 ? camera.prezzo_notte * notti : form.prezzo_totale
   }
 
   async function salvaPrenotazione() {
@@ -229,7 +226,6 @@ export default function Prenotazioni() {
   }
 
   function apriModifica(p: Prenotazione) {
-    skipPriceCalc.current = true
     setIdInModifica(p.id)
     setForm({
       camera_id: p.camera_id,
@@ -269,7 +265,7 @@ export default function Prenotazioni() {
   const prenotazioneSelezionata = prenotazioni.find(p => p.id === selezionata)
 
   function formatRange(): string {
-    const [_y1, m1, d1] = giorni[0].split('-')
+    const [, m1, d1] = giorni[0].split('-')
     const [y2, m2, d2] = giorni[giorni.length - 1].split('-')
     const mesi = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
     const fine = `${Number(d2)} ${mesi[Number(m2) - 1]} ${y2}`
@@ -409,7 +405,7 @@ export default function Prenotazioni() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Camera *</label>
-                <select value={form.camera_id} onChange={e => setForm({ ...form, camera_id: e.target.value })} style={selectStyle}>
+                <select value={form.camera_id} onChange={e => setForm({ ...form, camera_id: e.target.value, prezzo_totale: calcolaPrezzo(e.target.value, form.data_arrivo, form.data_partenza) })} style={selectStyle}>
                   <option value="">— Seleziona —</option>
                   {camere.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
@@ -426,11 +422,11 @@ export default function Prenotazioni() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Data arrivo *</label>
-                <input type="date" value={form.data_arrivo} onChange={e => setForm({ ...form, data_arrivo: e.target.value })} style={inputStyle} />
+                <input type="date" value={form.data_arrivo} onChange={e => setForm({ ...form, data_arrivo: e.target.value, prezzo_totale: calcolaPrezzo(form.camera_id, e.target.value, form.data_partenza) })} style={inputStyle} />
               </div>
               <div>
                 <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Data partenza *</label>
-                <input type="date" value={form.data_partenza} onChange={e => setForm({ ...form, data_partenza: e.target.value })} style={inputStyle} />
+                <input type="date" value={form.data_partenza} onChange={e => setForm({ ...form, data_partenza: e.target.value, prezzo_totale: calcolaPrezzo(form.camera_id, form.data_arrivo, e.target.value) })} style={inputStyle} />
               </div>
             </div>
 

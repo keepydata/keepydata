@@ -48,50 +48,49 @@ export default function Impostazioni() {
   const [salvanndoCamera, setSalvandoCamera] = useState(false)
 
   useEffect(() => {
+    async function caricaDati() {
+      setLoading(true)
+      setErrore(null)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: utenteData, error: errUtente } = await supabase
+          .from('utenti')
+          .select('struttura_id')
+          .eq('id', user.id)
+          .single()
+
+        if (errUtente) throw errUtente
+        if (!utenteData?.struttura_id) return
+
+        const { data: struttureData, error: errStruttura } = await supabase
+          .from('strutture')
+          .select('*')
+          .eq('id', utenteData.struttura_id)
+          .single()
+
+        if (errStruttura) throw errStruttura
+        if (struttureData) setStruttura(struttureData)
+
+        if (struttureData) {
+          const { data: camereData, error: errCamere } = await supabase
+            .from('camere')
+            .select('*')
+            .eq('struttura_id', struttureData.id)
+            .order('nome')
+
+          if (errCamere) throw errCamere
+          setCamere(camereData ?? [])
+        }
+      } catch (e: unknown) {
+        setErrore((e as Error).message ?? 'Errore nel caricamento')
+      } finally {
+        setLoading(false)
+      }
+    }
     caricaDati()
   }, [])
-
-  async function caricaDati() {
-    setLoading(true)
-    setErrore(null)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: utenteData, error: errUtente } = await supabase
-        .from('utenti')
-        .select('struttura_id')
-        .eq('id', user.id)
-        .single()
-
-      if (errUtente) throw errUtente
-      if (!utenteData?.struttura_id) return
-
-      const { data: struttureData, error: errStruttura } = await supabase
-        .from('strutture')
-        .select('*')
-        .eq('id', utenteData.struttura_id)
-        .single()
-
-      if (errStruttura) throw errStruttura
-      if (struttureData) setStruttura(struttureData)
-
-      if (struttureData) {
-        const { data: camereData, error: errCamere } = await supabase
-          .from('camere')
-          .select('*')
-          .eq('struttura_id', struttureData.id)
-          .order('nome')
-
-        if (errCamere) throw errCamere
-        setCamere(camereData ?? [])
-      }
-    } catch (e: unknown) {
-      setErrore((e as Error).message ?? 'Errore nel caricamento')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function salvaStruttura() {
     if (!struttura) return

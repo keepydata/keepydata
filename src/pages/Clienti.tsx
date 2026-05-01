@@ -43,41 +43,40 @@ export default function Clienti() {
   const [erroreForm, setErroreForm] = useState<string | null>(null)
 
   useEffect(() => {
+    async function caricaClienti() {
+      setLoading(true)
+      setErrore(null)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: utenteData, error: errUtente } = await supabase
+          .from('utenti')
+          .select('struttura_id')
+          .eq('id', user.id)
+          .single()
+
+        if (errUtente) throw errUtente
+        if (!utenteData?.struttura_id) return
+
+        setStrutturaId(utenteData.struttura_id)
+
+        const { data, error } = await supabase
+          .from('clienti')
+          .select('*')
+          .eq('struttura_id', utenteData.struttura_id)
+          .order('cognome')
+
+        if (error) throw error
+        setClienti(data ?? [])
+      } catch (e: unknown) {
+        setErrore((e as Error).message ?? 'Errore nel caricamento')
+      } finally {
+        setLoading(false)
+      }
+    }
     caricaClienti()
   }, [])
-
-  async function caricaClienti() {
-    setLoading(true)
-    setErrore(null)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: utenteData, error: errUtente } = await supabase
-        .from('utenti')
-        .select('struttura_id')
-        .eq('id', user.id)
-        .single()
-
-      if (errUtente) throw errUtente
-      if (!utenteData?.struttura_id) return
-
-      setStrutturaId(utenteData.struttura_id)
-
-      const { data, error } = await supabase
-        .from('clienti')
-        .select('*')
-        .eq('struttura_id', utenteData.struttura_id)
-        .order('cognome')
-
-      if (error) throw error
-      setClienti(data ?? [])
-    } catch (e: unknown) {
-      setErrore((e as Error).message ?? 'Errore nel caricamento')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function aggiungiCliente() {
     if (!struttura_id) return
