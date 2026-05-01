@@ -269,7 +269,7 @@ export default function Prenotazioni() {
   const prenotazioneSelezionata = prenotazioni.find(p => p.id === selezionata)
 
   function formatRange(): string {
-    const [y1, m1, d1] = giorni[0].split('-')
+    const [_y1, m1, d1] = giorni[0].split('-')
     const [y2, m2, d2] = giorni[giorni.length - 1].split('-')
     const mesi = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
     const fine = `${Number(d2)} ${mesi[Number(m2) - 1]} ${y2}`
