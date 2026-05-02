@@ -13,6 +13,7 @@ interface Fattura {
   cliente_id: string | null
   imponibile: number
   iva: number
+  tassa_soggiorno: number
   totale: number
   stato: 'bozza' | 'inviata' | 'pagata'
   data_fattura: string | null
@@ -28,6 +29,7 @@ interface Struttura {
   citta: string
   email: string
   telefono: string
+  tassa_soggiorno?: number
 }
 
 interface PrenForm {
@@ -35,6 +37,7 @@ interface PrenForm {
   data_arrivo: string
   data_partenza: string
   prezzo_totale: number | null
+  num_ospiti: number | null
   cliente_id: string | null
   clienti: { nome: string; cognome: string }[] | null
   camere: { nome: string }[] | null
@@ -85,9 +88,14 @@ function formatEuro(n: number): string {
   return `€ ${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function calcolaNotti(arrivo: string, partenza: string): number {
+  return Math.max(0, Math.round((new Date(partenza).getTime() - new Date(arrivo).getTime()) / 86400000))
+}
+
 const FORM_VUOTO = {
   prenotazione_id: '',
   imponibile: 0,
+  tassa_soggiorno: 0,
   stato: 'bozza' as 'bozza' | 'inviata' | 'pagata',
 }
 
@@ -111,7 +119,7 @@ export default function Fatturazione() {
   const [erroreForm, setErroreForm] = useState<string | null>(null)
 
   const iva = Math.round(form.imponibile * IVA * 100) / 100
-  const totale = Math.round((form.imponibile + iva) * 100) / 100
+  const totale = Math.round((form.imponibile + iva + form.tassa_soggiorno) * 100) / 100
 
   useEffect(() => {
     async function caricaDati() {
@@ -134,7 +142,7 @@ export default function Fatturazione() {
         setStrutturaId(sid)
 
         const [strutturaRes, fattureRes, prenRes] = await Promise.all([
-          supabase.from('strutture').select('id, nome, piva, indirizzo, citta, email, telefono').eq('id', sid).single(),
+          supabase.from('strutture').select('id, nome, piva, indirizzo, citta, email, telefono, tassa_soggiorno').eq('id', sid).single(),
           supabase
             .from('fatture')
             .select('*, clienti(nome, cognome), prenotazioni(data_arrivo, data_partenza, camere(nome))')
@@ -142,7 +150,7 @@ export default function Fatturazione() {
             .order('numero', { ascending: false }),
           supabase
             .from('prenotazioni')
-            .select('id, data_arrivo, data_partenza, prezzo_totale, cliente_id, clienti(nome, cognome), camere(nome)')
+            .select('id, data_arrivo, data_partenza, prezzo_totale, num_ospiti, cliente_id, clienti(nome, cognome), camere(nome)')
             .eq('struttura_id', sid)
             .neq('stato', 'cancellata')
             .order('data_arrivo', { ascending: false }),
@@ -183,6 +191,7 @@ export default function Fatturazione() {
           numero,
           imponibile: form.imponibile,
           iva,
+          tassa_soggiorno: form.tassa_soggiorno,
           totale,
           stato: form.stato,
           data_fattura: new Date().toISOString().slice(0, 10),
@@ -287,6 +296,15 @@ export default function Fatturazione() {
     doc.setFont('helvetica', 'normal')
     riga('Imponibile', formatEuro(f.imponibile), cLabel, mR)
     riga('IVA 10%', formatEuro(f.iva), cLabel, mR)
+    if (f.tassa_soggiorno > 0) {
+      riga('Tassa di soggiorno', formatEuro(f.tassa_soggiorno), cLabel, mR)
+      doc.setFontSize(8)
+      doc.setTextColor(150)
+      doc.text('(esente IVA)', cLabel, y)
+      doc.setTextColor(0)
+      doc.setFontSize(10)
+      y += 6
+    }
 
     doc.setDrawColor(180)
     doc.line(cLabel, y, mR, y)
@@ -395,6 +413,7 @@ export default function Fatturazione() {
                 { label: 'Data fattura', valore: selezionata.data_fattura ? formatData(selezionata.data_fattura) : '—' },
                 { label: 'Imponibile',   valore: formatEuro(selezionata.imponibile) },
                 { label: 'IVA 10%',      valore: formatEuro(selezionata.iva) },
+                ...(selezionata.tassa_soggiorno > 0 ? [{ label: 'Tassa di soggiorno (esente IVA)', valore: formatEuro(selezionata.tassa_soggiorno) }] : []),
                 { label: 'Totale',       valore: formatEuro(selezionata.totale) },
                 { label: 'Stato',        valore: <Badge stato={selezionata.stato} /> },
               ] as { label: string; valore: React.ReactNode }[]).map((item, i) => (
@@ -443,7 +462,10 @@ export default function Fatturazione() {
                   const imponibile = pren?.prezzo_totale != null
                     ? Math.round(pren.prezzo_totale / (1 + IVA) * 100) / 100
                     : 0
-                  setForm({ ...form, prenotazione_id: e.target.value, imponibile })
+                  const notti = pren ? calcolaNotti(pren.data_arrivo, pren.data_partenza) : 0
+                  const numOspiti = pren?.num_ospiti ?? 1
+                  const tassa_soggiorno = Math.round((struttura?.tassa_soggiorno ?? 0) * numOspiti * notti * 100) / 100
+                  setForm({ ...form, prenotazione_id: e.target.value, imponibile, tassa_soggiorno })
                 }}
                 style={{ ...inputStyle, background: 'white' }}
               >
@@ -482,14 +504,25 @@ export default function Fatturazione() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Totale</label>
+                <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Tassa soggiorno (esente IVA)</label>
                 <input
                   type="number"
-                  value={totale}
-                  readOnly
-                  style={{ ...inputStyle, background: '#f5f4f0', color: '#888' }}
+                  min={0}
+                  step={0.01}
+                  value={form.tassa_soggiorno}
+                  onChange={e => setForm({ ...form, tassa_soggiorno: Number(e.target.value) })}
+                  style={inputStyle}
                 />
               </div>
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Totale (IVA inclusa + tassa)</label>
+              <input
+                type="number"
+                value={totale}
+                readOnly
+                style={{ ...inputStyle, background: '#f5f4f0', color: '#888' }}
+              />
             </div>
 
             <div style={{ marginBottom: '1.25rem' }}>

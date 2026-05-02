@@ -20,6 +20,7 @@ interface Struttura {
   citta: string
   email: string
   telefono: string
+  tassa_soggiorno: number
   user_id: string
 }
 
@@ -106,6 +107,7 @@ export default function Impostazioni() {
           citta: struttura.citta,
           email: struttura.email,
           telefono: struttura.telefono,
+          tassa_soggiorno: struttura.tassa_soggiorno ?? 0,
         })
         .eq('id', struttura.id)
 
@@ -208,6 +210,17 @@ export default function Impostazioni() {
                     />
                   </div>
                 ))}
+              </div>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '0.5px solid #f0ede6' }}>
+                <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Tassa di soggiorno (€ per persona per notte)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={struttura.tassa_soggiorno ?? 0}
+                  onChange={e => setStruttura({ ...struttura, tassa_soggiorno: Number(e.target.value) })}
+                  style={{ display: 'block', width: '200px', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }}
+                />
               </div>
               <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end' }}>
                 {salvato && <span style={{ fontSize: '12px', color: '#0F6E56' }}>✓ Salvato!</span>}
