@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
@@ -105,6 +106,13 @@ export default function Login() {
         >
           {caricamento ? 'Accesso in corso...' : 'Accedi'}
         </button>
+
+        <p style={{ marginTop: '1.25rem', textAlign: 'center', fontSize: '13px', color: '#888' }}>
+          Non hai un account?{' '}
+          <Link to="/registrati" style={{ color: '#BA7517', textDecoration: 'none', fontWeight: '500' }}>
+            Registrati
+          </Link>
+        </p>
       </div>
     </div>
   )

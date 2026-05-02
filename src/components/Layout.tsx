@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -8,6 +9,34 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
+
+  const [nomeStruttura, setNomeStruttura] = useState('')
+  const [numCamere, setNumCamere] = useState<number | null>(null)
+
+  useEffect(() => {
+    async function caricaInfo() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: utente } = await supabase
+        .from('utenti')
+        .select('struttura_id')
+        .eq('id', user.id)
+        .single()
+
+      if (!utente?.struttura_id) return
+      const sid = utente.struttura_id
+
+      const [strutturaRes, camereRes] = await Promise.all([
+        supabase.from('strutture').select('nome').eq('id', sid).single(),
+        supabase.from('camere').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('attiva', true),
+      ])
+
+      if (strutturaRes.data?.nome) setNomeStruttura(strutturaRes.data.nome)
+      if (camereRes.count !== null) setNumCamere(camereRes.count)
+    }
+    caricaInfo()
+  }, [])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -56,8 +85,10 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         <div style={{ padding: '1rem 1.25rem', borderTop: '0.5px solid #e0ddd6' }}>
-          <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>B&B La Terrazza</div>
-          <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>5 camere</div>
+          <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{nomeStruttura || '—'}</div>
+          <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+            {numCamere === null ? '…' : `${numCamere} ${numCamere === 1 ? 'camera' : 'camere'}`}
+          </div>
           <button
             onClick={handleLogout}
             style={{

@@ -12,13 +12,14 @@ interface Fattura {
   prenotazione_id: string | null
   cliente_id: string | null
   imponibile: number
+  imponibile_colazione: number
   iva: number
   tassa_soggiorno: number
   totale: number
   stato: 'bozza' | 'inviata' | 'pagata'
   data_fattura: string | null
   clienti: { nome: string; cognome: string }[] | null
-  prenotazioni: { data_arrivo: string; data_partenza: string; camere: { nome: string }[] | null }[] | null
+  prenotazioni: { data_arrivo: string; data_partenza: string; num_colazioni: number | null; camere: { nome: string }[] | null }[] | null
 }
 
 interface Struttura {
@@ -30,6 +31,7 @@ interface Struttura {
   email: string
   telefono: string
   tassa_soggiorno?: number
+  prezzo_colazione?: number
 }
 
 interface PrenForm {
@@ -38,6 +40,8 @@ interface PrenForm {
   data_partenza: string
   prezzo_totale: number | null
   num_ospiti: number | null
+  colazione_inclusa: boolean
+  num_colazioni: number
   cliente_id: string | null
   clienti: { nome: string; cognome: string }[] | null
   camere: { nome: string }[] | null
@@ -92,9 +96,18 @@ function calcolaNotti(arrivo: string, partenza: string): number {
   return Math.max(0, Math.round((new Date(partenza).getTime() - new Date(arrivo).getTime()) / 86400000))
 }
 
+function labelColazione(f: Fattura): string {
+  const pren = Array.isArray(f.prenotazioni) ? f.prenotazioni[0] : f.prenotazioni
+  if (!pren) return 'Colazione'
+  const notti = calcolaNotti(pren.data_arrivo, pren.data_partenza)
+  const persone = pren.num_colazioni ?? 1
+  return `Colazione (${persone} ${persone === 1 ? 'persona' : 'persone'} × ${notti} ${notti === 1 ? 'notte' : 'notti'})`
+}
+
 const FORM_VUOTO = {
   prenotazione_id: '',
   imponibile: 0,
+  imponibile_colazione: 0,
   tassa_soggiorno: 0,
   stato: 'bozza' as 'bozza' | 'inviata' | 'pagata',
 }
@@ -118,8 +131,8 @@ export default function Fatturazione() {
   const [salvando, setSalvando] = useState(false)
   const [erroreForm, setErroreForm] = useState<string | null>(null)
 
-  const iva = Math.round(form.imponibile * IVA * 100) / 100
-  const totale = Math.round((form.imponibile + iva + form.tassa_soggiorno) * 100) / 100
+  const iva = Math.round((form.imponibile + form.imponibile_colazione) * IVA * 100) / 100
+  const totale = Math.round((form.imponibile + form.imponibile_colazione + iva + form.tassa_soggiorno) * 100) / 100
 
   useEffect(() => {
     async function caricaDati() {
@@ -142,15 +155,15 @@ export default function Fatturazione() {
         setStrutturaId(sid)
 
         const [strutturaRes, fattureRes, prenRes] = await Promise.all([
-          supabase.from('strutture').select('id, nome, piva, indirizzo, citta, email, telefono, tassa_soggiorno').eq('id', sid).single(),
+          supabase.from('strutture').select('id, nome, piva, indirizzo, citta, email, telefono, tassa_soggiorno, prezzo_colazione').eq('id', sid).single(),
           supabase
             .from('fatture')
-            .select('*, clienti(nome, cognome), prenotazioni(data_arrivo, data_partenza, camere(nome))')
+            .select('*, clienti(nome, cognome), prenotazioni(data_arrivo, data_partenza, num_colazioni, camere(nome))')
             .eq('struttura_id', sid)
             .order('numero', { ascending: false }),
           supabase
             .from('prenotazioni')
-            .select('id, data_arrivo, data_partenza, prezzo_totale, num_ospiti, cliente_id, clienti(nome, cognome), camere(nome)')
+            .select('id, data_arrivo, data_partenza, prezzo_totale, num_ospiti, colazione_inclusa, num_colazioni, cliente_id, clienti(nome, cognome), camere(nome)')
             .eq('struttura_id', sid)
             .neq('stato', 'cancellata')
             .order('data_arrivo', { ascending: false }),
@@ -190,13 +203,14 @@ export default function Fatturazione() {
           cliente_id: pren?.cliente_id ?? null,
           numero,
           imponibile: form.imponibile,
+          imponibile_colazione: form.imponibile_colazione,
           iva,
           tassa_soggiorno: form.tassa_soggiorno,
           totale,
           stato: form.stato,
           data_fattura: new Date().toISOString().slice(0, 10),
         })
-        .select('*, clienti(nome, cognome), prenotazioni(data_arrivo, data_partenza, camere(nome))')
+        .select('*, clienti(nome, cognome), prenotazioni(data_arrivo, data_partenza, num_colazioni, camere(nome))')
         .single()
 
       if (error) throw error
@@ -280,7 +294,8 @@ export default function Fatturazione() {
     doc.text('DESCRIZIONE PRESTAZIONE', mL, y)
     y += 5
     doc.setFont('helvetica', 'normal')
-    doc.text(`Soggiorno in ${nomeCameraFattura(f)}`, mL, y)
+    const descrizioneTipo = f.imponibile_colazione > 0 ? 'Soggiorno + Colazione' : 'Soggiorno'
+    doc.text(`${descrizioneTipo} in ${nomeCameraFattura(f)}`, mL, y)
     y += 5
     doc.text(`Periodo: ${periodoFattura(f)}`, mL, y)
     y += 16
@@ -294,7 +309,10 @@ export default function Fatturazione() {
     const cLabel = 140
     doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')
-    riga('Imponibile', formatEuro(f.imponibile), cLabel, mR)
+    riga('Imponibile soggiorno', formatEuro(f.imponibile), cLabel, mR)
+    if (f.imponibile_colazione > 0) {
+      riga(labelColazione(f), formatEuro(f.imponibile_colazione), cLabel, mR)
+    }
     riga('IVA 10%', formatEuro(f.iva), cLabel, mR)
     if (f.tassa_soggiorno > 0) {
       riga('Tassa di soggiorno', formatEuro(f.tassa_soggiorno), cLabel, mR)
@@ -411,7 +429,8 @@ export default function Fatturazione() {
                 { label: 'Camera',       valore: nomeCameraFattura(selezionata) },
                 { label: 'Periodo',      valore: periodoFattura(selezionata) },
                 { label: 'Data fattura', valore: selezionata.data_fattura ? formatData(selezionata.data_fattura) : '—' },
-                { label: 'Imponibile',   valore: formatEuro(selezionata.imponibile) },
+                { label: 'Imponibile soggiorno', valore: formatEuro(selezionata.imponibile) },
+                ...(selezionata.imponibile_colazione > 0 ? [{ label: labelColazione(selezionata), valore: formatEuro(selezionata.imponibile_colazione) }] : []),
                 { label: 'IVA 10%',      valore: formatEuro(selezionata.iva) },
                 ...(selezionata.tassa_soggiorno > 0 ? [{ label: 'Tassa di soggiorno (esente IVA)', valore: formatEuro(selezionata.tassa_soggiorno) }] : []),
                 { label: 'Totale',       valore: formatEuro(selezionata.totale) },
@@ -459,13 +478,16 @@ export default function Fatturazione() {
                 value={form.prenotazione_id}
                 onChange={e => {
                   const pren = prenotazioni.find(p => p.id === e.target.value)
-                  const imponibile = pren?.prezzo_totale != null
-                    ? Math.round(pren.prezzo_totale / (1 + IVA) * 100) / 100
-                    : 0
                   const notti = pren ? calcolaNotti(pren.data_arrivo, pren.data_partenza) : 0
                   const numOspiti = pren?.num_ospiti ?? 1
                   const tassa_soggiorno = Math.round((struttura?.tassa_soggiorno ?? 0) * numOspiti * notti * 100) / 100
-                  setForm({ ...form, prenotazione_id: e.target.value, imponibile, tassa_soggiorno })
+                  const imponibile_colazione = pren?.colazione_inclusa
+                    ? Math.round((struttura?.prezzo_colazione ?? 0) * (pren.num_colazioni ?? 1) * notti * 100) / 100
+                    : 0
+                  const imponibile = pren?.prezzo_totale != null
+                    ? Math.round((pren.prezzo_totale / (1 + IVA) - imponibile_colazione) * 100) / 100
+                    : 0
+                  setForm({ ...form, prenotazione_id: e.target.value, imponibile, imponibile_colazione, tassa_soggiorno })
                 }}
                 style={{ ...inputStyle, background: 'white' }}
               >
@@ -482,15 +504,26 @@ export default function Fatturazione() {
               </select>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
               <div>
-                <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Imponibile (€) *</label>
+                <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Imponibile soggiorno (€) *</label>
                 <input
                   type="number"
                   min={0}
                   step={0.01}
                   value={form.imponibile}
                   onChange={e => setForm({ ...form, imponibile: Number(e.target.value) })}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Imponibile colazione (€)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={form.imponibile_colazione}
+                  onChange={e => setForm({ ...form, imponibile_colazione: Number(e.target.value) })}
                   style={inputStyle}
                 />
               </div>

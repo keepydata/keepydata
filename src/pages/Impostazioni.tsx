@@ -18,20 +18,13 @@ interface Struttura {
   piva: string
   indirizzo: string
   citta: string
+  cap: string
+  provincia: string
   email: string
   telefono: string
   tassa_soggiorno: number
-  user_id: string
+  prezzo_colazione: number
 }
-
-const CAMPI_STRUTTURA = [
-  { label: 'Nome struttura', key: 'nome' },
-  { label: 'Partita IVA', key: 'piva' },
-  { label: 'Indirizzo', key: 'indirizzo' },
-  { label: 'Città', key: 'citta' },
-  { label: 'Email', key: 'email' },
-  { label: 'Telefono', key: 'telefono' },
-] as const
 
 const CAMERA_VUOTA = { nome: '', tipo: '', posti: 2, prezzo_notte: 0, attiva: true }
 
@@ -102,12 +95,14 @@ export default function Impostazioni() {
         .from('strutture')
         .update({
           nome: struttura.nome,
-          piva: struttura.piva,
           indirizzo: struttura.indirizzo,
           citta: struttura.citta,
+          cap: struttura.cap ?? '',
+          provincia: struttura.provincia ?? '',
           email: struttura.email,
           telefono: struttura.telefono,
           tassa_soggiorno: struttura.tassa_soggiorno ?? 0,
+          prezzo_colazione: struttura.prezzo_colazione ?? 0,
         })
         .eq('id', struttura.id)
 
@@ -199,28 +194,85 @@ export default function Impostazioni() {
           <div style={{ fontSize: '11px', fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Dati struttura</div>
           {struttura ? (
             <div style={{ background: 'white', border: '0.5px solid #e0ddd6', borderRadius: '12px', padding: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                {CAMPI_STRUTTURA.map(field => (
-                  <div key={field.key}>
-                    <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>{field.label}</label>
-                    <input
-                      value={struttura[field.key] ?? ''}
-                      onChange={e => setStruttura({ ...struttura, [field.key]: e.target.value })}
-                      style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }}
-                    />
-                  </div>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                {/* Nome struttura */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Nome struttura</label>
+                  <input value={struttura.nome ?? ''} onChange={e => setStruttura({ ...struttura, nome: e.target.value })}
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }} />
+                </div>
+                {/* P.IVA — readonly */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Partita IVA</label>
+                  <input value={struttura.piva ?? ''} readOnly
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #e0ddd6', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box', background: '#f5f4f0', color: '#888', cursor: 'default' }} />
+                </div>
+                {/* Email */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Email</label>
+                  <input value={struttura.email ?? ''} onChange={e => setStruttura({ ...struttura, email: e.target.value })}
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }} />
+                </div>
+                {/* Telefono */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Telefono</label>
+                  <input value={struttura.telefono ?? ''} onChange={e => setStruttura({ ...struttura, telefono: e.target.value })}
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }} />
+                </div>
+                {/* Indirizzo */}
+                <div style={{ gridColumn: 'span 4' }}>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Indirizzo</label>
+                  <input value={struttura.indirizzo ?? ''} onChange={e => setStruttura({ ...struttura, indirizzo: e.target.value })}
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }} />
+                </div>
+                {/* Città */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Città</label>
+                  <input value={struttura.citta ?? ''} onChange={e => setStruttura({ ...struttura, citta: e.target.value })}
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }} />
+                </div>
+                {/* CAP */}
+                <div>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>CAP</label>
+                  <input
+                    value={struttura.cap ?? ''}
+                    onChange={e => setStruttura({ ...struttura, cap: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+                    maxLength={5}
+                    placeholder="50100"
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }}
+                  />
+                </div>
+                {/* Provincia */}
+                <div>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Prov.</label>
+                  <input
+                    value={struttura.provincia ?? ''}
+                    onChange={e => setStruttura({ ...struttura, provincia: e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase() })}
+                    maxLength={2}
+                    placeholder="FI"
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box', textTransform: 'uppercase' }}
+                  />
+                </div>
               </div>
-              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '0.5px solid #f0ede6' }}>
-                <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Tassa di soggiorno (€ per persona per notte)</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={struttura.tassa_soggiorno ?? 0}
-                  onChange={e => setStruttura({ ...struttura, tassa_soggiorno: Number(e.target.value) })}
-                  style={{ display: 'block', width: '200px', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }}
-                />
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '0.5px solid #f0ede6', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Tassa di soggiorno (€ per persona per notte)</label>
+                  <input
+                    type="number" min={0} step={0.01}
+                    value={struttura.tassa_soggiorno ?? 0}
+                    onChange={e => setStruttura({ ...struttura, tassa_soggiorno: Number(e.target.value) })}
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Prezzo colazione (€ per persona per giorno)</label>
+                  <input
+                    type="number" min={0} step={0.01}
+                    value={struttura.prezzo_colazione ?? 0}
+                    onChange={e => setStruttura({ ...struttura, prezzo_colazione: Number(e.target.value) })}
+                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '8px 10px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif', boxSizing: 'border-box' }}
+                  />
+                </div>
               </div>
               <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end' }}>
                 {salvato && <span style={{ fontSize: '12px', color: '#0F6E56' }}>✓ Salvato!</span>}

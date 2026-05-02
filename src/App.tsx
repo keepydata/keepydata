@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
+import Registrati from './pages/Registrati'
 import Dashboard from './pages/Dashboard'
 import Prenotazioni from './pages/Prenotazioni'
 import Clienti from './pages/Clienti'
@@ -39,6 +40,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={utente ? <Navigate to="/dashboard" /> : <Login />} />
+        <Route path="/registrati" element={utente ? <Navigate to="/dashboard" /> : <Registrati />} />
         <Route path="/dashboard" element={utente ? <Dashboard /> : <Navigate to="/" />} />
         <Route path="/prenotazioni" element={utente ? <Prenotazioni /> : <Navigate to="/" />} />
         <Route path="/clienti" element={utente ? <Clienti /> : <Navigate to="/" />} />

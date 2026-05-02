@@ -26,6 +26,8 @@ interface Prenotazione {
   stato: string
   note: string | null
   canale: string | null
+  colazione_inclusa: boolean
+  num_colazioni: number
   camere: { nome: string } | null
   clienti: { nome: string; cognome: string } | null
 }
@@ -35,6 +37,7 @@ const CANALI = ['Diretto', 'Booking.com', 'Airbnb', 'Expedia', 'Telefono', 'Emai
 const FORM_VUOTO = {
   camera_id: '', cliente_id: '', data_arrivo: '', data_partenza: '',
   num_ospiti: 1, prezzo_totale: 0, stato: 'confermata', note: '', canale: 'Diretto',
+  colazione_inclusa: false, num_colazioni: 1,
 }
 
 function localDateStr(d: Date): string {
@@ -117,6 +120,7 @@ export default function Prenotazioni() {
   const [clienti, setClienti] = useState<Cliente[]>([])
   const [prenotazioni, setPrenotazioni] = useState<Prenotazione[]>([])
   const [struttura_id, setStrutturaId] = useState<string | null>(null)
+  const [prezzoColazione, setPrezzoColazione] = useState(0)
   const [loading, setLoading] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
   const [selezionata, setSelezionata] = useState<string | null>(null)
@@ -153,10 +157,11 @@ export default function Prenotazioni() {
         const sid = utenteData.struttura_id
         setStrutturaId(sid)
 
-        const [camereRes, clientiRes, prenotazioniRes] = await Promise.all([
+        const [camereRes, clientiRes, prenotazioniRes, strutturaRes] = await Promise.all([
           supabase.from('camere').select('id, nome, prezzo_notte').eq('struttura_id', sid).eq('attiva', true).order('nome'),
           supabase.from('clienti').select('id, nome, cognome').eq('struttura_id', sid).order('cognome'),
           supabase.from('prenotazioni').select('*, camere(nome), clienti(nome, cognome)').eq('struttura_id', sid).order('data_arrivo'),
+          supabase.from('strutture').select('prezzo_colazione').eq('id', sid).single(),
         ])
 
         if (camereRes.error) throw camereRes.error
@@ -166,6 +171,7 @@ export default function Prenotazioni() {
         setCamere(camereRes.data ?? [])
         setClienti(clientiRes.data ?? [])
         setPrenotazioni(prenotazioniRes.data ?? [])
+        setPrezzoColazione(strutturaRes.data?.prezzo_colazione ?? 0)
       } catch (e: unknown) {
         setErrore((e as Error).message ?? 'Errore nel caricamento')
       } finally {
@@ -175,11 +181,16 @@ export default function Prenotazioni() {
     caricaDati()
   }, [])
 
-  function calcolaPrezzo(cameraId: string, arrivo: string, partenza: string): number {
+  function calcolaPrezzo(
+    cameraId: string, arrivo: string, partenza: string,
+    inclColazione = form.colazione_inclusa,
+    numCol = form.num_colazioni,
+  ): number {
     const camera = camere.find(c => c.id === cameraId)
-    if (!camera || !arrivo || !partenza) return form.prezzo_totale
+    if (!camera || !arrivo || !partenza) return 0
     const notti = Math.round((new Date(partenza).getTime() - new Date(arrivo).getTime()) / 86400000)
-    return notti > 0 ? camera.prezzo_notte * notti : form.prezzo_totale
+    if (notti <= 0) return 0
+    return camera.prezzo_notte * notti + (inclColazione ? prezzoColazione * numCol * notti : 0)
   }
 
   async function salvaPrenotazione() {
@@ -237,6 +248,8 @@ export default function Prenotazioni() {
       stato: p.stato,
       note: p.note ?? '',
       canale: p.canale ?? 'Diretto',
+      colazione_inclusa: p.colazione_inclusa ?? false,
+      num_colazioni: p.num_colazioni ?? 1,
     })
     setErroreForm(null)
     setMostraForm(true)
@@ -365,6 +378,7 @@ export default function Prenotazioni() {
                 { label: 'Prezzo totale', valore: prenotazioneSelezionata.prezzo_totale ? `€ ${prenotazioneSelezionata.prezzo_totale}` : '—' },
                 { label: 'Canale', valore: prenotazioneSelezionata.canale ?? '—' },
                 { label: 'Stato', valore: prenotazioneSelezionata.stato ?? '—' },
+                { label: 'Colazione', valore: prenotazioneSelezionata.colazione_inclusa ? `Inclusa · ${prenotazioneSelezionata.num_colazioni} pers.` : 'Non inclusa' },
               ].map((item, i) => (
                 <div key={i} style={{ background: '#f5f4f0', borderRadius: '8px', padding: '12px' }}>
                   <div style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>{item.label}</div>
@@ -439,6 +453,32 @@ export default function Prenotazioni() {
                 <label style={{ fontSize: '12px', color: '#888', fontWeight: 500 }}>Prezzo totale (€)</label>
                 <input type="number" min={0} value={form.prezzo_totale} onChange={e => setForm({ ...form, prezzo_totale: Number(e.target.value) })} style={inputStyle} />
               </div>
+            </div>
+
+            <div style={{ marginBottom: '12px', padding: '10px 12px', background: '#f5f4f0', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="colazione"
+                  checked={form.colazione_inclusa}
+                  onChange={e => setForm({ ...form, colazione_inclusa: e.target.checked, prezzo_totale: calcolaPrezzo(form.camera_id, form.data_arrivo, form.data_partenza, e.target.checked, form.num_colazioni) })}
+                  style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+                />
+                <label htmlFor="colazione" style={{ fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                  Includi colazione{prezzoColazione > 0 ? ` · € ${prezzoColazione}/pers./notte` : ''}
+                </label>
+              </div>
+              {form.colazione_inclusa && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', color: '#666' }}>N° persone colazione</label>
+                  <input
+                    type="number" min={1}
+                    value={form.num_colazioni}
+                    onChange={e => setForm({ ...form, num_colazioni: Number(e.target.value), prezzo_totale: calcolaPrezzo(form.camera_id, form.data_arrivo, form.data_partenza, form.colazione_inclusa, Number(e.target.value)) })}
+                    style={{ width: '64px', padding: '6px 8px', borderRadius: '8px', border: '0.5px solid #ccc', fontSize: '13px', fontFamily: 'sans-serif' }}
+                  />
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
